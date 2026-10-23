@@ -28,7 +28,10 @@ def htl(numerop):
         index = 0
     tgrupos.add(index, design.timeline.count - 1)
 
-def parameters(m,z,ap,ah,anchoeng,bool,X,fastcompute, normal_system=False, backlash=0.0, clearance=None):
+def parameters(m,z,ap,ah,anchoeng,bool,X,fastcompute, normal_system=False, backlash=0.0, clearance=None, root_clearance=0.0, internal=False):
+    # root_clearance: standard bottom clearance (ISO 53: c = 0.25*m). It only deepens the ROOT, so the
+    # mating gear's tip never touches this gear's root cylinder. For internal (ring) gears the roles of
+    # ra/rf are swapped (ra is the ring's root), so the extra depth is added to ra instead of rf.
     modt = m
     apt = ap
     if normal_system:
@@ -49,6 +52,14 @@ def parameters(m,z,ap,ah,anchoeng,bool,X,fastcompute, normal_system=False, backl
     dv=dp+2*X*m
     dva=dv+2*(m - clearance)
     dvf=dv - 2*(m + clearance)
+    if internal:
+        da = da + 2*root_clearance
+        dva = dva + 2*root_clearance
+        ra = da/2
+    else:
+        df = df - 2*root_clearance
+        dvf = dvf - 2*root_clearance
+        rf = df/2
     rv=dv/2
     rva=dva/2
     rvf=dvf/2
@@ -90,7 +101,7 @@ def parameters(m,z,ap,ah,anchoeng,bool,X,fastcompute, normal_system=False, backl
     def sigmaPS(rt,rb,ap,X):
         alphat = mt.acos(rb / rt)
         dt = 2 * rt
-        Tt = dt * ((mt.pi/(2*z)) + (2*X*mt.tan(ap)/(z)) + inv(ap) - inv(alphat))
+        Tt = dt * ((T/dp) + (2*X*mt.tan(ap)/(z)) + inv(ap) - inv(alphat))
         sigm = Tt / rt
         return sigm
 
@@ -390,7 +401,11 @@ def cpattern(linecenter,esconico,ra,rf,z,diente,esStdr,anchoeng,newComp,u='Escri
 #cpattern crea un patrón circular de cuerpos o features.'esStdr' es para especificar si es una corona distanciada del origen y 'u' es porque las operaciones de corte
 #tienen generan problemas para una compute option de identical(a=1) y por lo tanto debe usarse una de adjust (a=2) aunque sea mas lenta
 
-def helixext(esPS,ra,rf,escorona,aph,sketch,aok,xl,yl,zl,anchoeng,cw,newComp,u='Escribe: NewBody,Join o Cut'):
+def pitchradius(m,z,ah,normal_system):
+    modt = m/mt.cos(ah) if normal_system else m
+    return modt*z/2
+
+def helixext(esPS,ra,rf,escorona,aph,sketch,aok,xl,yl,zl,anchoeng,cw,newComp,u='Escribe: NewBody,Join o Cut',rp=None):
     try:
         app=adsk.core.Application.get()
         ui=app.userInterface
@@ -401,8 +416,9 @@ def helixext(esPS,ra,rf,escorona,aph,sketch,aok,xl,yl,zl,anchoeng,cw,newComp,u='
         pvec=adsk.core.Point3D.create(0,0,anchoeng/1.25)
         orig = adsk.core.Point3D.create(0,0,0)
 
-        m=(ra-rf)/2.25
-        rp=ra-m
+        if rp is None:
+            m=(ra-rf)/2.25
+            rp=ra-m
         pah=mt.pi*(2*rp)*(mt.cos(aph)/mt.sin(aph))
         regla3=(10*(anchoeng/1.25)*2*mt.pi)/pah
         #ui.messageBox(str(regla3))
@@ -1025,7 +1041,7 @@ def rowbodymove(numerodecomponentes,radioext):
 #Mueve la cantidad de cuerpos (los últimos creados) especificados como conjunto en la dirección especificada
 
 def planetgearsdr(m1,zp1,ap1,aok,anchoeng,newComp,backlash=0.0,clearance=0.0):
-    list3=parameters(m1,zp1,ap1,0,anchoeng,False,0,aok,backlash=backlash,clearance=clearance)
+    list3=parameters(m1,zp1,ap1,0,anchoeng,False,0,aok,backlash=backlash,clearance=clearance,root_clearance=0.25*m1)
     rf=list3[0]
     x=list3[1]
     y=list3[2]
@@ -1041,7 +1057,7 @@ def planetgearsdr(m1,zp1,ap1,aok,anchoeng,newComp,backlash=0.0,clearance=0.0):
     combine(zp1,newComp)
 
 def coronastd(aaok,z,m,ap,anchoeng,espesorc,newComp,backlash=0.0,clearance=0.0):
-    list3 = parameters(m, z, ap, 0, anchoeng, False, 0, aaok,backlash=-backlash,clearance=-clearance)
+    list3 = parameters(m, z, ap, 0, anchoeng, False, 0, aaok,backlash=-backlash,clearance=-clearance,root_clearance=0.25*m,internal=True)
     rf = list3[0]
     x = list3[1]
     y = list3[2]
@@ -1062,7 +1078,7 @@ def coronasnostd(aaok,z,m,anchoeng,ap,espesorc,newComp,occ,backlash=0.0,clearanc
     ui = app.userInterface
     design = app.activeProduct
     rootComp = newComp
-    list3 = parameters(m, z, ap, 0, anchoeng, False, 0, aaok,backlash=backlash,clearance=-clearance)
+    list3 = parameters(m, z, ap, 0, anchoeng, False, 0, aaok,backlash=backlash,clearance=-clearance,root_clearance=0.25*m,internal=True)
     rf = list3[0]
     x = list3[1]
     y = list3[2]
@@ -1094,7 +1110,7 @@ def helicalgs(aaok,cw,dh,z,anchoeng,m,ap,ah,newComp, helicalSystem,backlash=0.0,
     mult1 = 1
     if dh == True:
         mult1 = 2
-    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=backlash,clearance=clearance)
+    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=backlash,clearance=clearance,root_clearance=0.25*m)
     rf = list3[0]
     x = list3[1]
     y = list3[2]
@@ -1111,7 +1127,7 @@ def helicalgs(aaok,cw,dh,z,anchoeng,m,ap,ah,newComp, helicalSystem,backlash=0.0,
     car=extruir(perfil[0], anchoeng,newComp, 'NewBody')
     cara=car[1]
     try:
-        dienton=helixext(perfil[1], ra, rf, False, ah, perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,cw,newComp,'NewBody')
+        dienton=helixext(perfil[1], ra, rf, False, ah, perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,cw,newComp,'NewBody',rp=pitchradius(m,z,ah,helicalSystem))
         diente = dienton[0]
         cpattern(1, False, ra, rf, z, diente, True, anchoeng, newComp,'Join')
         combine(z,newComp)
@@ -1130,7 +1146,7 @@ def coronashelstdr(aaok, cw, dh, z, anchoeng, m, ap, espesorc, ah, newComp, heli
     mult1 = 1
     if dh == True:
         mult1 = 2
-    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=-backlash,clearance=-clearance)
+    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=-backlash,clearance=-clearance,root_clearance=0.25*m,internal=True)
     rf = list3[0]
     x = list3[1]
     y = list3[2]
@@ -1146,7 +1162,7 @@ def coronashelstdr(aaok, cw, dh, z, anchoeng, m, ap, espesorc, ah, newComp, heli
     perfil = skeng1(m, ap, rf, ra, x, y, x2, y2, aok, Ttda, True, True, espesorc, newComp)
     car=extruir(perfil[0], anchoeng, newComp, 'NewBody')
     cara=car[1]
-    diente = helixext(False, ra, rf, False, ah, perfil[2], aok, xl, yl, zl, 1.25*anchoeng,cw, newComp, 'Cut')
+    diente = helixext(False, ra, rf, False, ah, perfil[2], aok, xl, yl, zl, 1.25*anchoeng,cw, newComp, 'Cut',rp=pitchradius(m,z,ah,helicalSystem))
     cpattern(1, False, ra, rf, z, diente[0], True, anchoeng, newComp, 'Cut')
     mainBody=rootComp.bRepBodies.item(0)
 
@@ -1164,7 +1180,7 @@ def coronashelnostdr(aaok,cw,dh,z,anchoeng,m,ap,espesorc,ah, newComp, occ, helic
     mult1 = 1
     if dh == True:
         mult1 = 2
-    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=backlash,clearance=-clearance)
+    list3 = parameters(m, z, ap, ah, 1.25 * anchoeng, cw, 0, aaok, helicalSystem,backlash=backlash,clearance=-clearance,root_clearance=0.25*m,internal=True)
     rf = list3[0]
     x = list3[1]
     y = list3[2]
@@ -1182,7 +1198,7 @@ def coronashelnostdr(aaok,cw,dh,z,anchoeng,m,ap,espesorc,ah, newComp, occ, helic
     esque = rootComp.sketches.item(rootComp.sketches.count - 1)
     profe = esque.profiles.item(0)
     extruir(profe,anchoeng, newComp, 'NewBody')
-    dienton=helixext(False, ra, rf, True, ah, perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,cw, newComp, 'NewBody')
+    dienton=helixext(False, ra, rf, True, ah, perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,cw, newComp, 'NewBody',rp=pitchradius(m,z,ah,helicalSystem))
     diente= dienton[0]
     cpattern(1, False, ra, rf, z, diente, False, anchoeng, newComp, 'Join')
     combine(z, newComp)
@@ -1280,7 +1296,7 @@ def heliwormg(m,z,ap,worm,anchoeng,vul,vul2,aaok, newComp, helicalSystem,backlas
     perfil = skeng1(m, ap, rf, ra, x, y, x2, y2, aok, Ttda, False, True, 0, newComp)
     extruir(perfil[0], anchoeng, newComp, 'NewBody')
     try:
-        dienton= helixext(False, ra, rf, False, worm[3], perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,vul, newComp, 'NewBody')
+        dienton= helixext(False, ra, rf, False, worm[3], perfil[2], aok, xl, yl, zl, 1.25 * anchoeng,vul, newComp, 'NewBody',rp=pitchradius(m,z,worm[3],helicalSystem))
         diente = dienton[0]
         cpattern(1, False, ra, rf, z, diente, True, anchoeng, newComp, 'Join')
         combine(z, newComp)
@@ -2527,6 +2543,10 @@ class cmdDefOKButtonPressedEventHandler(adsk.core.CommandEventHandler):
                 anchoeng=inputs2.itemById('GearHeight_in').value
 
             ap=inputs2.itemById('PressureAngle').value
+            if standard == 'Metric':
+                backlash_val = inputs2.itemById('Backlash_mm').value*10
+            else:
+                backlash_val = inputs2.itemById('Backlash_in').value*10
 
             save_params(cmdDefPressedEventHandler, inputs2)
             nuOfOps = design.timeline.count
@@ -2534,7 +2554,7 @@ class cmdDefOKButtonPressedEventHandler(adsk.core.CommandEventHandler):
             root = design.activeComponent
             newComp = root.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
             hb=hidebodies(newComp)
-            planetgearsdr(m,z,ap,aaok,anchoeng,newComp)
+            planetgearsdr(m,z,ap,aaok,anchoeng,newComp,backlash=backlash_val)
             showhiddenbodies(hb, newComp)
             fichatecnica(aaok,False,False,False,False,False, textmodule,ap,z,0,0,0,0,0,newComp)
             htl(design.timeline.count - nuOfOps)
@@ -3124,11 +3144,11 @@ class cmdDef9OKButtonPressedEventHandler(adsk.core.CommandEventHandler):
             rvf=list3[29]
             rb=list3[27]
             if abs(X)==0:
-                planetgearsdr(m,z,ap,aaok,anchoeng, newComp)
+                planetgearsdr(m,z,ap,aaok,anchoeng, newComp, backlash=backlash)
                 fichatecnica(aaok,False,False,False,False,False,textmodule,ap,z,0,0,0,0,0, newComp)
                 #numerop = spurgi
             else:
-                prof=skeng2(x,y,x2,y2,rva,rvf,aok,rb,m,z,ap, 0, X, newComp)
+                prof=skeng2(x,y,x2,y2,rva,rvf,aok,rb,m,z,ap, 0, X, newComp, backlash=backlash)
                 op='NewBody'
                 extruir(prof[0],anchoeng, newComp, 'NewBody')
                 diente=extruir(prof[1],anchoeng,newComp, op)
@@ -3213,19 +3233,19 @@ class cmdDef10OKButtonPressedEventHandler(adsk.core.CommandEventHandler):
         rvf=list3[29]
         rb=list3[27]
         if abs(X)==0:
-            helicalgs(aaok, vul, vul2, z, anchoeng, m, ap, ah, newComp, bool(helicalSystem))
+            helicalgs(aaok, vul, vul2, z, anchoeng, m, ap, ah, newComp, bool(helicalSystem), backlash=backlash)
             if vul2:
                 newComp.isConstructionFolderLightBulbOn = False
                 fichatecnica(aaok,False,True,False,False,False,textmodule,ap,z,ah,0,0,0,0, newComp, bool(helicalSystem))
             else:
                 fichatecnica(aaok, False, True, False, False, False, textmodule, ap, z, ah, 0, 0, 0, 0, newComp, bool(helicalSystem))
         else:
-            prof=skeng2(x,y,x2,y2,rva,rvf,aok,rb,m,z,ap,ah,X, newComp, bool(helicalSystem))
+            prof=skeng2(x,y,x2,y2,rva,rvf,aok,rb,m,z,ap,ah,X, newComp, bool(helicalSystem), backlash=backlash)
             op='NewBody'
             esPS=True
             extruir(prof[0],anchoeng, newComp, 'NewBody')
             try:
-                diente=helixext(esPS,rva,rvf,False,ah,prof[2],aok,xl,yl,zl,1.25*anchoeng,vul, newComp, op)
+                diente=helixext(esPS,rva,rvf,False,ah,prof[2],aok,xl,yl,zl,1.25*anchoeng,vul, newComp, op,rp=pitchradius(m,z,ah,bool(helicalSystem)))
                 cpattern(1,False,ra,rf,z,diente[0],True,anchoeng, newComp, 'Join')
                 if vul2==True:
                     combine(z, newComp)

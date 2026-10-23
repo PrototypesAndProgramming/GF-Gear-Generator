@@ -16,3 +16,14 @@ Thank you for joining me on this journey, and I look forward to witnessing the g
 The GFGG is about to undergo some great code quality improvements as it will follow the OOP structure I'm using for STLGears.com . To understand what will be changed I've added the UML diagram bellow so you can get an idea of the stuff that's to come:
 
 ![UML Diagram](./UML_Diagram.png)
+*********************************************** Root clearance / backlash fix ************************************************
+
+This fork fixes gears whose tooth tips touched (and in practice intersected) the root cylinder of the mating gear:
+
+- Spur, helical, internal (ring) and planetary gears now get the standard bottom clearance of 0.25 × module
+  (dedendum 1.25 m, addendum 1.0 m). Previously addendum and dedendum were both 1.0 m, so the tip of one gear sat
+  exactly on the root circle of its mate. Backlash is a tangential allowance and never changed this radial gap.
+- The Backlash input on the standard spur gear was never read; it is now applied. It is also now passed through on
+  the non-standard spur/helical paths with zero profile shift and is honoured by profile-shifted tooth profiles.
+- Helical twist is now computed from the true pitch radius instead of being inferred from tooth depth, which was
+  off by ~1% for typical gears and made meshing helical gears slightly mismatched.
